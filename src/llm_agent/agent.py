@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class AgentState(BaseModel):
     """Mutable state passed between graph nodes."""
 
-    messages: Annotated[list[BaseMessage], add_messages] = Field(default_factory=list)
+    messages: Annotated[list[BaseMessage], add_messages] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     """Conversation history including tool calls and results."""
 
     iteration: int = 0

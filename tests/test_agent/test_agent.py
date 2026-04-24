@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from llm_agent.agent import AgentState, build_graph, call_tools
+from llm_agent.agent import AgentState, build_graph, call_tools  # pyright: ignore[reportUnknownVariableType]
 from llm_agent.config import AgentConfig
 
 
@@ -27,8 +27,8 @@ def test_call_tools_unknown_tool() -> None:
     )
     result = call_tools(state)
     tool_messages = result["messages"]
-    assert len(tool_messages) == 1
-    assert "unknown tool" in tool_messages[0].content
+    assert len(tool_messages) == 1  # pyright: ignore[reportArgumentType]
+    assert "unknown tool" in tool_messages[0].content  # pyright: ignore[reportIndexIssue]
 
 
 def test_call_tools_increments_iteration() -> None:
@@ -57,7 +57,7 @@ def test_build_graph_returns_state_graph() -> None:
         mock_llm = MagicMock()
         mock_llm.bind_tools.return_value = mock_llm
         mock_create_llm.return_value = mock_llm
-        graph = build_graph(config)
+        graph = build_graph(config)  # pyright: ignore[reportUnknownVariableType]
     assert graph is not None
 
 

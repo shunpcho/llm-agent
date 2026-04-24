@@ -17,8 +17,8 @@ def read_file(path: str) -> str:
         return f"Error: path is not a file: {path}"
     try:
         return file_path.read_text(encoding="utf-8")
-    except Exception as exc:
-        return f"Error: {exc}"
+    except OSError as exc:
+        return f"Error: filesystem error: {exc}"
 
 
 @tool
