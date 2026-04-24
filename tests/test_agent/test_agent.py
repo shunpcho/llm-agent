@@ -1,5 +1,6 @@
 """Tests for the agent graph construction and tool dispatch."""
 
+import uuid
 from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -43,6 +44,23 @@ def test_call_tools_increments_iteration() -> None:
     )
     result = call_tools(state)
     assert result["iteration"] == 4
+
+
+def test_call_tools_without_id_generates_fallback() -> None:
+    state = AgentState(
+        messages=[
+            AIMessage(
+                content="",
+                tool_calls=[{"id": None, "name": "nonexistent_tool", "args": {}}],
+            )
+        ]
+    )
+    result = call_tools(state)
+    tool_messages = result["messages"]
+    assert len(tool_messages) == 1  # pyright: ignore[reportArgumentType]
+    generated_id = tool_messages[0].tool_call_id  # pyright: ignore[reportIndexIssue]
+    assert generated_id is not None
+    uuid.UUID(generated_id)  # raises ValueError if not a valid UUID
 
 
 def test_call_tools_no_tool_calls() -> None:

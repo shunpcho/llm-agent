@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated, Literal, TYPE_CHECKING
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
@@ -52,12 +53,13 @@ def call_tools(state: AgentState) -> dict[str, object]:
     for tool_call in last.tool_calls:
         tool_name = tool_call["name"]
         tool_args = tool_call["args"]
+        tool_call_id = tool_call.get("id") or str(uuid.uuid4())
         tool = _TOOL_MAP.get(tool_name)
         result = f"Error: unknown tool '{tool_name}'" if tool is None else tool.invoke(tool_args)
         tool_messages.append(
             ToolMessage(
                 content=str(result),
-                tool_call_id=tool_call["id"],
+                tool_call_id=tool_call_id,
             )
         )
 
@@ -92,12 +94,13 @@ def build_graph(  # pyright: ignore[reportUnknownParameterType]  # LangGraph stu
         for tool_call in last.tool_calls:
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
+            tool_call_id = tool_call.get("id") or str(uuid.uuid4())
             tool = config_tool_map.get(tool_name)
             result = f"Error: unknown tool '{tool_name}'" if tool is None else tool.invoke(tool_args)
             tool_messages.append(
                 ToolMessage(
                     content=str(result),
-                    tool_call_id=tool_call["id"],
+                    tool_call_id=tool_call_id,
                 )
             )
 
