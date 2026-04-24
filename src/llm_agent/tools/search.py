@@ -27,6 +27,7 @@ def search_code(pattern: str, path: str = ".", file_glob: str = "*") -> str:
         "--line-number",
         "--include",
         file_glob,
+        "-e",
         pattern,
         str(search_path),
     ]
