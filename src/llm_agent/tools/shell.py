@@ -27,9 +27,16 @@ def run_shell(command: str, timeout: int = _DEFAULT_TIMEOUT) -> str:
             check=False,
         )
         output = result.stdout + result.stderr
-        if len(output) > _MAX_OUTPUT_CHARS:
-            output = output[:_MAX_OUTPUT_CHARS] + "\n...[output truncated]"
         return_code_line = f"\n[exit code: {result.returncode}]"
+        truncation_marker = "\n...[output truncated]"
+        max_output_chars = _MAX_OUTPUT_CHARS - len(return_code_line)
+
+        if len(output) > max_output_chars:
+            max_truncated_output_chars = max_output_chars - len(truncation_marker)
+            if max_truncated_output_chars > 0:
+                output = output[:max_truncated_output_chars] + truncation_marker
+            else:
+                output = output[:max_output_chars]
         return output + return_code_line
     except subprocess.TimeoutExpired:
         return f"Error: command timed out after {timeout} seconds"
