@@ -4,7 +4,7 @@ from pathlib import Path
 
 from llm_agent.config import AgentConfig
 
-_CODING_RULES_PATH = Path(__file__).parent.parent.parent.parent / "coding-instructions.md"
+_CODING_RULES_PATH = Path(__file__).parent.parent.parent / "coding-instructions.md"
 
 _BASE_SYSTEM_PROMPT = """\
 You are an expert software engineer acting as a local coding agent.
