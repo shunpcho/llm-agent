@@ -53,11 +53,18 @@ def call_tools(state: AgentState) -> dict[str, object]:
         tool_name = tool_call["name"]
         tool_args = tool_call["args"]
         tool = _TOOL_MAP.get(tool_name)
-        result = f"Error: unknown tool '{tool_name}'" if tool is None else tool.invoke(tool_args)
+        if tool is None:
+            content = f"Error: unknown tool '{tool_name}'"
+        else:
+            try:
+                content = str(tool.invoke(tool_args))
+            except Exception as exc:  # noqa: BLE001
+                content = f"Error invoking tool '{tool_name}': {exc}"
         tool_messages.append(
             ToolMessage(
-                content=str(result),
+                content=content or "(no output)",
                 tool_call_id=tool_call["id"],
+                name=tool_name,
             )
         )
 
@@ -93,11 +100,18 @@ def build_graph(  # pyright: ignore[reportUnknownParameterType]  # LangGraph stu
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
             tool = config_tool_map.get(tool_name)
-            result = f"Error: unknown tool '{tool_name}'" if tool is None else tool.invoke(tool_args)
+            if tool is None:
+                content = f"Error: unknown tool '{tool_name}'"
+            else:
+                try:
+                    content = str(tool.invoke(tool_args))
+                except Exception as exc:  # noqa: BLE001
+                    content = f"Error invoking tool '{tool_name}': {exc}"
             tool_messages.append(
                 ToolMessage(
-                    content=str(result),
+                    content=content or "(no output)",
                     tool_call_id=tool_call["id"],
+                    name=tool_name,
                 )
             )
 
