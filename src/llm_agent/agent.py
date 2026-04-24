@@ -7,7 +7,7 @@ from typing import Annotated, Literal, TYPE_CHECKING
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from llm_agent.config import AgentConfig
 from llm_agent.llm import create_llm
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class AgentState(BaseModel):
     """Mutable state passed between graph nodes."""
 
-    messages: Annotated[list[BaseMessage], add_messages] = []
+    messages: Annotated[list[BaseMessage], add_messages] = Field(default_factory=list)
     """Conversation history including tool calls and results."""
 
     iteration: int = 0
