@@ -70,7 +70,7 @@ def call_tools(state: AgentState) -> dict[str, object]:
 def build_graph(  # pyright: ignore[reportUnknownParameterType]  # LangGraph stubs are incomplete
     config: AgentConfig,
 ) -> StateGraph:  # pyright: ignore[reportMissingTypeArgument]  # LangGraph stubs are incomplete
-    """Construct and compile the coding-agent LangGraph."""
+    """Construct and return the coding-agent LangGraph."""
     llm = create_llm(config).bind_tools(_ALL_TOOLS)
     system_prompt = build_system_prompt(config)
 
