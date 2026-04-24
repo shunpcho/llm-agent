@@ -25,8 +25,11 @@ def read_file(path: str) -> str:
 def write_file(path: str, content: str) -> str:
     """Write *content* to the file at *path*, creating parent directories as needed."""
     file_path = Path(path)
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    file_path.write_text(content, encoding="utf-8")
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(content, encoding="utf-8")
+    except OSError as exc:
+        return f"Error: failed to write file {path}: {exc}"
     return f"Successfully wrote {len(content)} characters to {path}"
 
 
