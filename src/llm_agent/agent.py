@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from llm_agent.config import AgentConfig
 from llm_agent.llm import create_llm
 from llm_agent.prompts import build_system_prompt
-from llm_agent.tools import list_directory, read_file, run_shell, search_code, write_file
+from llm_agent.tools import list_directory, make_tools, read_file, run_shell, search_code, write_file
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -71,7 +71,9 @@ def build_graph(  # pyright: ignore[reportUnknownParameterType]  # LangGraph stu
     config: AgentConfig,
 ) -> StateGraph:  # pyright: ignore[reportMissingTypeArgument]  # LangGraph stubs are incomplete
     """Construct and return the coding-agent LangGraph."""
-    llm = create_llm(config).bind_tools(_ALL_TOOLS)
+    config_tools = make_tools(config)
+    config_tool_map: dict[str, BaseTool] = {t.name: t for t in config_tools}
+    llm = create_llm(config).bind_tools(config_tools)
     system_prompt = build_system_prompt(config)
 
     def call_model(state: AgentState) -> dict[str, object]:
@@ -80,9 +82,33 @@ def build_graph(  # pyright: ignore[reportUnknownParameterType]  # LangGraph stu
         response = llm.invoke(messages)
         return {"messages": [response]}
 
+    def _call_tools_node(state: AgentState) -> dict[str, object]:
+        """Execute all tool calls using config-aware tool instances."""
+        last = state.messages[-1]
+        if not isinstance(last, AIMessage) or not last.tool_calls:
+            return {}
+
+        tool_messages: list[ToolMessage] = []
+        for tool_call in last.tool_calls:
+            tool_name = tool_call["name"]
+            tool_args = tool_call["args"]
+            tool = config_tool_map.get(tool_name)
+            result = f"Error: unknown tool '{tool_name}'" if tool is None else tool.invoke(tool_args)
+            tool_messages.append(
+                ToolMessage(
+                    content=str(result),
+                    tool_call_id=tool_call["id"],
+                )
+            )
+
+        return {
+            "messages": tool_messages,
+            "iteration": state.iteration + 1,
+        }
+
     graph: StateGraph = StateGraph(AgentState)  # pyright: ignore[reportMissingTypeArgument]  # LangGraph stubs
     graph.add_node("model", call_model)
-    graph.add_node("tools", call_tools)
+    graph.add_node("tools", _call_tools_node)
 
     graph.add_edge(START, "model")
     graph.add_conditional_edges(
