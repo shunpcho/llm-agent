@@ -15,7 +15,10 @@ def read_file(path: str) -> str:
         return f"Error: file not found: {path}"
     if not file_path.is_file():
         return f"Error: path is not a file: {path}"
-    return file_path.read_text(encoding="utf-8")
+    try:
+        return file_path.read_text(encoding="utf-8")
+    except Exception as exc:
+        return f"Error: {exc}"
 
 
 @tool
