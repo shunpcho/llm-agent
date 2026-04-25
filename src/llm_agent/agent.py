@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 import uuid
 from typing import Annotated, Literal, TYPE_CHECKING
 
@@ -31,6 +33,49 @@ class AgentState(BaseModel):
 
 _ALL_TOOLS: list[BaseTool] = [read_file, write_file, list_directory, run_shell, search_code]
 _TOOL_MAP: dict[str, BaseTool] = {t.name: t for t in _ALL_TOOLS}
+
+
+def _extract_tool_call_from_content(content: str) -> dict[str, object] | None:
+    """Try to extract a structured tool call from a model response that placed JSON in its content.
+
+    Some Ollama-backed models emit ``{"name": ..., "arguments": ...}`` as plain text
+    instead of using the structured ``tool_calls`` field.  This function parses such
+    responses so the agent can still dispatch the call.
+
+    Returns a tool-call dict compatible with ``AIMessage.tool_calls``, or ``None`` if
+    no tool call could be extracted.
+    """
+    stripped = content.strip()
+
+    # First try parsing the whole content as JSON; fall back to the first {...} block.
+    data: object = None
+    try:
+        data = json.loads(stripped)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", stripped, re.DOTALL)
+        if match:
+            try:
+                data = json.loads(match.group())
+            except json.JSONDecodeError:
+                pass
+
+    if not isinstance(data, dict):
+        return None
+
+    name = data.get("name")
+    if not isinstance(name, str) or not name:
+        return None
+
+    # The model may use "arguments" (OpenAI-style) or "args" (LangChain-style).
+    raw_args = data.get("arguments") or data.get("args") or {}
+    args: dict[str, object] = raw_args if isinstance(raw_args, dict) else {}
+
+    return {
+        "id": str(uuid.uuid4()),
+        "name": name,
+        "args": args,
+        "type": "tool_call",
+    }
 
 
 def _should_continue(state: AgentState, config: AgentConfig) -> Literal["tools", "__end__"]:
@@ -82,6 +127,28 @@ def build_graph(  # pyright: ignore[reportUnknownParameterType]  # LangGraph stu
         """Invoke the LLM with the current conversation history."""
         messages: list[BaseMessage] = [SystemMessage(content=system_prompt), *state.messages]
         response = llm.invoke(messages)
+
+        # Some Ollama-backed models emit tool calls as JSON text rather than using the
+        # structured tool_calls field.  When that happens, parse the content and inject
+        # a synthetic tool call so the graph can continue to the tools node.
+        if (
+            isinstance(response, AIMessage)
+            and not response.tool_calls
+            and isinstance(response.content, str)
+            and response.content.strip()
+        ):
+            parsed = _extract_tool_call_from_content(response.content)
+            if parsed is not None:
+                response = AIMessage(
+                    # The original content was a JSON tool-call string; clearing it
+                    # avoids surfacing raw JSON in the conversation history and ensures
+                    # the message is recognisable as a pure tool-dispatch turn.
+                    content="",
+                    tool_calls=[parsed],  # pyright: ignore[reportArgumentType]  # dict is compatible with ToolCall TypedDict
+                    response_metadata=response.response_metadata,
+                    id=response.id,
+                )
+
         return {"messages": [response]}
 
     def _call_tools_node(state: AgentState) -> dict[str, object]:
