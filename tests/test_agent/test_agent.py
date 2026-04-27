@@ -5,8 +5,10 @@ from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from llm_agent.agent import AgentState, _extract_first_json_object, _extract_tool_call_from_content, build_graph, call_tools  # pyright: ignore[reportUnknownVariableType]
+from llm_agent.agent import AgentState, build_graph, call_tools  # pyright: ignore[reportUnknownVariableType]
 from llm_agent.config import AgentConfig
+from llm_agent.utils.tool_call import extract_first_json_object as _extract_first_json_object
+from llm_agent.utils.tool_call import extract_tool_call_from_content as _extract_tool_call_from_content
 
 
 def _make_config() -> AgentConfig:
