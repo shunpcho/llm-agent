@@ -164,7 +164,10 @@ def build_graph(  # pyright: ignore[reportUnknownParameterType]  # LangGraph stu
         for tool_call in last.tool_calls:
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
-            tool_call_id = tool_call.get("id") or str(uuid.uuid4())
+            tool_call_id = tool_call.get("id")
+            if not tool_call_id:
+                tool_call_id = str(uuid.uuid4())
+                tool_call["id"] = tool_call_id
             tool = config_tool_map.get(tool_name)
             result = f"Error: unknown tool '{tool_name}'" if tool is None else tool.invoke(tool_args)
             tool_messages.append(
