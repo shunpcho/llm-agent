@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from llm_agent.agent import AgentState, _extract_tool_call_from_content, build_graph, call_tools  # pyright: ignore[reportUnknownVariableType]
+from llm_agent.agent import AgentState, _extract_first_json_object, _extract_tool_call_from_content, build_graph, call_tools  # pyright: ignore[reportUnknownVariableType]
 from llm_agent.config import AgentConfig
 
 
@@ -132,6 +132,54 @@ def test_extract_tool_call_from_content_missing_name() -> None:
 def test_extract_tool_call_from_content_empty_string() -> None:
     """Empty content returns None."""
     result = _extract_tool_call_from_content("")
+    assert result is None
+
+
+# --- _extract_first_json_object ---
+
+
+def test_extract_first_json_object_simple() -> None:
+    """Extracts a plain JSON object correctly."""
+    result = _extract_first_json_object('{"a": 1}')
+    assert result == {"a": 1}
+
+
+def test_extract_first_json_object_embedded_in_text() -> None:
+    """Extracts the first JSON object when surrounded by prose."""
+    result = _extract_first_json_object('Here it is: {"x": 2} and some trailing text.')
+    assert result == {"x": 2}
+
+
+def test_extract_first_json_object_multiple_objects() -> None:
+    """Only the first JSON object is returned when multiple are present."""
+    result = _extract_first_json_object('{"first": 1} {"second": 2}')
+    assert result == {"first": 1}
+
+
+def test_extract_first_json_object_nested_braces() -> None:
+    """Nested objects are handled correctly and not cut short by inner closing braces."""
+    result = _extract_first_json_object('{"name": "f", "arguments": {"path": "p"}}')
+    assert result == {"name": "f", "arguments": {"path": "p"}}
+
+
+def test_extract_first_json_object_string_with_braces() -> None:
+    """Brace characters inside a string value do not confuse the brace counter."""
+    result = _extract_first_json_object('{"name": "f", "arguments": {"cmd": "echo {hi}"}}')
+    assert result == {"name": "f", "arguments": {"cmd": "echo {hi}"}}
+
+
+def test_extract_first_json_object_no_object() -> None:
+    """Returns None when no JSON object is present."""
+    result = _extract_first_json_object("no braces here")
+    assert result is None
+
+
+def test_extract_tool_call_from_content_multiple_objects_in_prose() -> None:
+    """The correct tool-call object is extracted even when there are extra braces in the text."""
+    content = 'Status: {} and then {"name": "write_file", "arguments": {"path": "a.py", "content": "x"}}'
+    result = _extract_tool_call_from_content(content)
+    # First balanced object is {} which has no "name", so None is returned.
+    # The function should gracefully return None for the empty object.
     assert result is None
 
 

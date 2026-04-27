@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 import uuid
 from typing import Annotated, Literal, TYPE_CHECKING
 
@@ -35,6 +34,43 @@ _ALL_TOOLS: list[BaseTool] = [read_file, write_file, list_directory, run_shell, 
 _TOOL_MAP: dict[str, BaseTool] = {t.name: t for t in _ALL_TOOLS}
 
 
+def _extract_first_json_object(text: str) -> object | None:
+    """Scan *text* for the first balanced ``{...}`` block and try to parse it as JSON.
+
+    Unlike a greedy regex, this correctly handles content that contains multiple JSON
+    objects or extra ``{``/``}`` characters outside the target object.
+    """
+    start = text.find("{")
+    if start == -1:
+        return None
+
+    depth = 0
+    in_string = False
+    escape_next = False
+    for i, ch in enumerate(text[start:], start=start):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == "\\" and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(text[start : i + 1])
+                except json.JSONDecodeError:
+                    return None
+    return None
+
+
 def _extract_tool_call_from_content(content: str) -> dict[str, object] | None:
     """Try to extract a structured tool call from a model response that placed JSON in its content.
 
@@ -47,17 +83,13 @@ def _extract_tool_call_from_content(content: str) -> dict[str, object] | None:
     """
     stripped = content.strip()
 
-    # First try parsing the whole content as JSON; fall back to the first {...} block.
+    # First try parsing the whole content as JSON; fall back to a balanced-brace scan
+    # so that extra surrounding text or multiple JSON objects do not confuse extraction.
     data: object = None
     try:
         data = json.loads(stripped)
     except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", stripped, re.DOTALL)
-        if match:
-            try:
-                data = json.loads(match.group())
-            except json.JSONDecodeError:
-                pass
+        data = _extract_first_json_object(stripped)
 
     if not isinstance(data, dict):
         return None
