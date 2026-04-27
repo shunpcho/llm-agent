@@ -149,15 +149,15 @@ def test_call_model_falls_back_when_tool_calls_empty() -> None:
         graph = build_graph(config)  # pyright: ignore[reportUnknownVariableType]
         compiled = graph.compile()  # pyright: ignore[reportUnknownVariableType]
 
-        # Run one iteration; the tools node will fail with "unknown tool" but that is fine –
-        # we only care that call_model emitted a non-empty tool_calls list.
+        # Run the compiled graph once. Downstream tool execution may still occur; this test
+        # only verifies that call_model populated tool_calls from the JSON content it returned.
         state = AgentState(messages=[HumanMessage(content="task")], iteration=config.max_iterations - 1)
 
-        # Intercept the model node output before tools run by checking invocation args.
+        # Invoke the full graph and inspect the returned messages for the model-produced AIMessage.
         result = compiled.invoke(state)  # pyright: ignore[reportUnknownVariableType]
         messages = result["messages"]
 
-        # Find the first AIMessage produced by the model node.
+        # Find the AIMessage emitted by the model node in the final graph state.
         ai_messages = [m for m in messages if isinstance(m, AIMessage)]
         assert ai_messages, "Expected at least one AIMessage"
         first_ai = ai_messages[0]
