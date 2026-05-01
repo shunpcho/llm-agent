@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated, Literal, TYPE_CHECKING
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
@@ -13,6 +14,11 @@ from llm_agent.config import AgentConfig
 from llm_agent.llm import create_llm
 from llm_agent.prompts import build_system_prompt
 from llm_agent.tools import list_directory, make_tools, read_file, run_shell, search_code, write_file
+from llm_agent.utils.tool_call import extract_first_json_object, extract_tool_call_from_content
+
+# Private aliases kept for backward-compatibility with tests that import these names directly.
+_extract_first_json_object = extract_first_json_object
+_extract_tool_call_from_content = extract_tool_call_from_content
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -52,12 +58,16 @@ def call_tools(state: AgentState) -> dict[str, object]:
     for tool_call in last.tool_calls:
         tool_name = tool_call["name"]
         tool_args = tool_call["args"]
+        tool_call_id = tool_call.get("id")
+        if not tool_call_id:
+            tool_call_id = str(uuid.uuid4())
+            tool_call["id"] = tool_call_id
         tool = _TOOL_MAP.get(tool_name)
         result = f"Error: unknown tool '{tool_name}'" if tool is None else tool.invoke(tool_args)
         tool_messages.append(
             ToolMessage(
                 content=str(result),
-                tool_call_id=tool_call["id"],
+                tool_call_id=tool_call_id,
             )
         )
 
@@ -80,6 +90,28 @@ def build_graph(  # pyright: ignore[reportUnknownParameterType]  # LangGraph stu
         """Invoke the LLM with the current conversation history."""
         messages: list[BaseMessage] = [SystemMessage(content=system_prompt), *state.messages]
         response = llm.invoke(messages)
+
+        # Some Ollama-backed models emit tool calls as JSON text rather than using the
+        # structured tool_calls field.  When that happens, parse the content and inject
+        # a synthetic tool call so the graph can continue to the tools node.
+        if (
+            isinstance(response, AIMessage)
+            and not response.tool_calls
+            and isinstance(response.content, str)
+            and response.content.strip()
+        ):
+            parsed = _extract_tool_call_from_content(response.content)
+            if parsed is not None:
+                response = AIMessage(
+                    # The original content was a JSON tool-call string; clearing it
+                    # avoids surfacing raw JSON in the conversation history and ensures
+                    # the message is recognisable as a pure tool-dispatch turn.
+                    content="",
+                    tool_calls=[parsed],  # pyright: ignore[reportArgumentType]  # dict is compatible with ToolCall TypedDict
+                    response_metadata=response.response_metadata,
+                    id=response.id,
+                )
+
         return {"messages": [response]}
 
     def _call_tools_node(state: AgentState) -> dict[str, object]:
@@ -92,12 +124,16 @@ def build_graph(  # pyright: ignore[reportUnknownParameterType]  # LangGraph stu
         for tool_call in last.tool_calls:
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
+            tool_call_id = tool_call.get("id")
+            if not tool_call_id:
+                tool_call_id = str(uuid.uuid4())
+                tool_call["id"] = tool_call_id
             tool = config_tool_map.get(tool_name)
             result = f"Error: unknown tool '{tool_name}'" if tool is None else tool.invoke(tool_args)
             tool_messages.append(
                 ToolMessage(
                     content=str(result),
-                    tool_call_id=tool_call["id"],
+                    tool_call_id=tool_call_id,
                 )
             )
 
